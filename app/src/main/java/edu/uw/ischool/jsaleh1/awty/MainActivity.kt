@@ -6,12 +6,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.provider.Telephony
 import android.telephony.PhoneNumberUtils
+import android.telephony.SmsManager
+import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import android.Manifest
 import java.util.Locale
 
 const val ALARM_ACTION = "edu.uw.ischool.jsaleh1.ALARM"
@@ -39,6 +46,27 @@ class MainActivity : AppCompatActivity() {
                 stopAwty()
             }
         }
+        checkForSmsPermission()
+    }
+
+    private fun checkForSmsPermission() {
+        // This will (probably) prompt only once, when first installed/run on the device.
+        // Once obtained, the permission will be "sticky".
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.SEND_SMS) !=
+            PackageManager.PERMISSION_GRANTED) {
+            Log.d("MainActivity", "Permission not granted!")
+            // Permission not yet granted. Use requestPermissions().
+            // MY_PERMISSIONS_REQUEST_SEND_SMS is an
+            // app-defined int constant. The callback method gets the
+            // result of the request.
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.SEND_SMS), 1)
+            startBtn.isEnabled = false
+            checkForSmsPermission()
+        } else {
+            // Permission already granted. Enable the message button.
+            startBtn.isEnabled = true
+        }
     }
 
     private fun checkValues() {
@@ -64,7 +92,12 @@ class MainActivity : AppCompatActivity() {
         if(receiver == null) {
             receiver = object : BroadcastReceiver() {
                 override fun onReceive(p0: Context?, p1: Intent?) {
-                    Toast.makeText(p0, "${formattedPhone}: ${message}", Toast.LENGTH_SHORT).show()
+                    val smsManager =
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+                            getSystemService(SmsManager::class.java)
+                        else
+                            SmsManager.getDefault()
+                    smsManager.sendTextMessage(formattedPhone, null, message, null, null)
                 }
             }
             val filter = IntentFilter(ALARM_ACTION)
@@ -77,6 +110,7 @@ class MainActivity : AppCompatActivity() {
         val alarmManager : AlarmManager = getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val minToMillis = minutes * 60000
         alarmManager.setRepeating(AlarmManager.RTC_WAKEUP, System.currentTimeMillis(), minToMillis.toLong(), pendingIntent)
+        checkForSmsPermission()
     }
 
     private fun stopAwty() {
